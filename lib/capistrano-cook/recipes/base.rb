@@ -1,13 +1,6 @@
 require "digest"
 
 Capistrano::Configuration.instance.load do
-  set_default(:copy_ssh_key, true)
-  set_default(:ssh_key_name) do
-    Capistrano::CLI.ui.ask "Provide name for the rsa file (default is 'id', come up with with smth more meaningful): "
-  end
-  set_default(:ssh_key_passphrase) do
-    Capistrano::CLI.ui.ask "Yo dude, this shit is important! Type a strong passphrase: "
-  end
 
   def template(from, to)
     if File.exists?("deploy/templates/#{from}")
@@ -43,6 +36,15 @@ Capistrano::Configuration.instance.load do
   end
 
   namespace :root do
+
+    set_default(:copy_ssh_key, true)
+    set_default(:ssh_key_name) do
+      Capistrano::CLI.ui.ask "Provide name for the rsa file (default is 'id', come up with with smth more meaningful): "
+    end
+    set_default(:ssh_key_passphrase) do
+      Capistrano::CLI.ui.ask "Yo dude, this shit is important! Type a strong passphrase: "
+    end
+
     desc "create depoly user and add proper privilages"
     task :add_user do
       set_default(:usr_password) { Capistrano::CLI.password_prompt "Password for new user:" }
@@ -70,7 +72,7 @@ Capistrano::Configuration.instance.load do
           logger.info ".ssh directory already exists in the home directory of #{user}"
         end
 
-        id_rsa_name     = copy_ssh_key
+        id_rsa_name     = ssh_key_name
         rsa_passphrase  = ssh_key_passphrase
 
         id_rsa_name ||= 'id_rsa'
