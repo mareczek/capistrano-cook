@@ -38,12 +38,12 @@ Capistrano::Configuration.instance.load do
   namespace :root do
 
     set_default(:copy_ssh_key, true)
-    set_default(:ssh_key_name) do
+    set_default(:ssh_key_name) {
       Capistrano::CLI.ui.ask "Provide name for the rsa file (default is 'id', come up with with smth more meaningful): "
-    end
-    set_default(:ssh_key_passphrase) do
+    }
+    set_default(:ssh_key_passphrase) {
       Capistrano::CLI.ui.ask "Yo dude, this shit is important! Type a strong passphrase: "
-    end
+    }
 
     desc "create depoly user and add proper privilages"
     task :add_user do
@@ -64,47 +64,40 @@ Capistrano::Configuration.instance.load do
     end
 
     task :copy_ssh_key do
-      if copy_ssh_key 
 
+      begin
+        run "mkdir ~/.ssh"
+      rescue Capistrano::CommandError => e
+        logger.info ".ssh directory already exists in the home directory of #{user}"
+      end
+
+      id_rsa_name     = ssh_key_name || "id_rsa"
+
+      begin
+        file_exists = system("ls -x1 ~/.ssh/#{id_rsa_name}.pub")
+      rescue Capistrano::CommandError => e
+        logger.info "File does not exist, need to generate one"
+        file_exists = false
+      end
+
+      unless file_exists
+        rsa_passphrase && rsa_passphrase.length > 0 ? 
+          run("ssh-keygen -f ~/.ssh/#{id_rsa_name} -N #{ssh_key_passphrase}") : 
+          run("ssh-keygen -f ~/.ssh/#{id_rsa_name}")
+      end
+
+      key = system("cat ~/.ssh/#{id_rsa_name}.pub")
+      if key && key.length > 0
         begin
           run "mkdir ~/.ssh"
         rescue Capistrano::CommandError => e
-          logger.info ".ssh directory already exists in the home directory of #{user}"
+          logger.info "remote .ssh directory already exists"
         end
-
-        id_rsa_name     = ssh_key_name
-        rsa_passphrase  = ssh_key_passphrase
-
-        id_rsa_name ||= 'id_rsa'
-
-        begin
-          existing_file = system("ls -x1 ~/.ssh/#{id_rsa_name}.pub")
-        rescue Capistrano::CommandError => e
-          logger.info "File does not exist, need to generate one"
-          existing_file = false
-        end
-
-        if existing_file == false
-          rsa_passphrase && rsa_passphrase.length > 0 ? 
-            run("ssh-keygen -f ~/.ssh/#{id_rsa_name} -N #{rsa_passphrase}") : 
-            run("ssh-keygen -f ~/.ssh/#{id_rsa_name}")
-          existing_file = "~/.ssh/#{id_rsa_name}.pub"
-        end
-
-        if existing_file != false
-          key = system("cat ~/.ssh/#{id_rsa_name}.pub")
-          if key && key.length > 0
-            begin
-              run "mkdir ~/.ssh"
-            rescue Capistrano::CommandError => e
-              logger.info "remote .ssh directory already exists"
-            end
-            run "echo '#{key}' >> ~/.ssh/authorized_keys"
-          end
-        end
-
+        run "echo '#{key}' >> ~/.ssh/authorized_keys"
       end
+
     end
-    after "root:add_user", "root:copy_ssh_key"
+    after("root:add_user", "root:copy_ssh_key") if copy_ssh_key
+
   end
 end
